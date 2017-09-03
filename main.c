@@ -56,10 +56,16 @@ void *parent(void *arg){
 		for(int j = 0; j < forks; j++){
 			if (atoi(branches[j])>-1){
 				//Lector de transacciones.
+				int five = 0;
 				int bytes = read(inwPipes[j][0], readbuffer2, sizeof(readbuffer2));
-				//printf("sucursal %s dice: '%s' \n",branches[j], readbuffer2);
-				if(strlen(readbuffer2)>20){
-					char  copiaoriginal[34];
+				printf("sucursal %s dice: '%s' \n",branches[j], readbuffer2);
+				for(int i = 0; i < strlen(readbuffer2); i++){
+					if(readbuffer2[i]==','){
+						five+=1;
+					}
+				}
+				if(five==5){
+					char  copiaoriginal[40];
 					strcpy(copiaoriginal,readbuffer2);
 					char* tipo;
 					char* sucursalorigen;
@@ -100,7 +106,10 @@ void *parent(void *arg){
 						write(outwPipes[j][1], mens, (strlen(mens)+1));
 
 					}
+					(void)cuentaorigen;
+					(void)sucursalorigen;
 				}
+				(void)bytes;
 			}
 			strcpy(readbuffer2,"");
 		}
@@ -116,7 +125,7 @@ void *child(void *arg){
 	
 	while(terminated == 0){
 		//Generacion de transacciones.
-		char msg[34] = "";
+		char msg[40] = "";
 		char guardartransc[34]="";
 		t=100000;
 		t+=rand()%400000;
@@ -233,12 +242,11 @@ int main(int argc, char** argv) {
 		}
 		//comando para ver sucursales activas.
 		else if (!strncmp("list", commandBuf, strlen("list"))) {
-		
-			char msg[] = "list";
+
 			printf("| PID | N° cuentas | \n");
 			for (int j = 0; j<forks;j++){
 				if (atoi(branches[j])>-1){
-					write(outwPipes[j][1], msg, 5);
+					printf("| %3s |%12s| \n",branches[j],branchesac[j]);
 				}
 			}	
 			continue;
@@ -250,7 +258,7 @@ int main(int argc, char** argv) {
 			// pueden iniciarse procesos sin control.
 			// Buscar en Google "fork bomb"
 			char  * numerocuentas;
-			int largo = strlen(commandBuf);
+			//int largo = strlen(commandBuf);
 			numerocuentas = strtok(commandBuf, " ");
 			char n[7] = "1000";
 
@@ -307,9 +315,7 @@ int main(int argc, char** argv) {
 					// debido a razones documentadas aqui:
 					// https://goo.gl/Yxyuxb
 					char *aux;
-					if (!strncmp("list", readbuffer, strlen("list"))){
-						printf("| %03d |%12s| \n",sucId,n);
-					}
+					char *nada;
 					//manejo de depositos hacia esta sucursal.
 					if (!strncmp("DP", readbuffer, strlen("DP"))){
 						
@@ -317,7 +323,7 @@ int main(int argc, char** argv) {
 						//printf("%s \n",readbuffer);
 						char * cuenta;
 						char * monto;
-						char * nada;
+						
 						nada=strtok(readbuffer, ",");
 						cuenta=strtok(NULL, ",");
 						monto =strtok(NULL,",");
@@ -327,22 +333,20 @@ int main(int argc, char** argv) {
 						
 					}
 					//manejo de retiros en esta sucursal.
-					if (!strncmp("RT", readbuffer, strlen("RT"))){
+					else if (!strncmp("RT", readbuffer, strlen("RT"))){
 						char copia[34];
-						
-						char * nada;
+
 						char * cuenta;
 						char * monto;
 						char montop[7]="";
 						char * so;
-						char * co;
 						char error[20]="";
 
 						strcpy(error,"1,");
 						strcpy(copia,readbuffer);//lo hago aca para ver si funca
 						nada=strtok(readbuffer, ",");//tipo
 						so=strtok(NULL,",");//so
-						co=strtok(NULL,",");//co
+						nada=strtok(NULL,",");//co
 						nada=strtok(NULL,",");//sd
 						cuenta=strtok(NULL,",");//cd
 						strcat(error,cuenta);
@@ -371,8 +375,7 @@ int main(int argc, char** argv) {
 						
 					}
 					//receptor de error por falta de fondos.
-					if (!strncmp("E1", readbuffer, strlen("E1"))){
-						char * nada;
+					else if (!strncmp("E1", readbuffer, strlen("E1"))){
 						char * cuenta;
 						char * monto;
 
@@ -387,8 +390,7 @@ int main(int argc, char** argv) {
 						
 					}
 					//manejo de error en momento de que maten una sucursal a la que se le estaba enviando una transaccion.
-					if (!strncmp("FAIL", readbuffer, strlen("FAIL"))){
-						char * nada;
+					else if (!strncmp("FAIL", readbuffer, strlen("FAIL"))){
 						char * tipo;
 						char * cuenta;
 						char * monto;
@@ -412,7 +414,7 @@ int main(int argc, char** argv) {
 		
 					}
 					//aviso de nueva sucursal abierta.
-					if (!strncmp("NS", readbuffer, strlen("NS"))){
+					else if (!strncmp("NS", readbuffer, strlen("NS"))){
 						char id[3]="";
 						char cuentas[7]="";
 						aux=strtok(readbuffer, " ");
@@ -426,12 +428,13 @@ int main(int argc, char** argv) {
 						counter +=1;
 					}
 					//señal para terminar proceso.
-					if (!strncmp("kill", readbuffer, strlen("kill"))){
+					else if (!strncmp("kill", readbuffer, strlen("kill"))){
 						aux=strtok(readbuffer, " ");
 						aux=strtok(NULL," ");
 						if(strcmp(branches[forks],aux)==0){
 							terminated = 1;
-							pthread_join(tc,NULL);			 	
+							pthread_join(tc,NULL);
+							free(cash);		 	
 							_exit(EXIT_SUCCESS);
 						}
 						for (int j = 0; j<counter;j++){
@@ -442,7 +445,7 @@ int main(int argc, char** argv) {
 						
 					}
 					//dump de cuentas.
-					if (!strncmp("dump_accs", readbuffer, strlen("dump_accs"))){
+					else if (!strncmp("dump_accs", readbuffer, strlen("dump_accs"))){
 						ipg=fopen("dump_accs_PID.csv", "w");
 					        if (ipg == NULL) {
 						    fprintf(stderr, "No se puede abrir archivo de entrada\n");
@@ -486,9 +489,8 @@ int main(int argc, char** argv) {
 						if(ipg!=NULL) fclose(ipg);
 					
 					}
-					
-					
-					
+					(void)nada;
+					(void)bytes;	
 					
 				}
 			}
@@ -580,6 +582,7 @@ int main(int argc, char** argv) {
 	
 	//señal para terminar thread concurrente.
 	terminated = 1;
+	free(cash);
   	printf("Terminando ejecucion limpiamente...\n");
 	wait(NULL);
   	return(EXIT_SUCCESS);

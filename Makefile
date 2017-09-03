@@ -2,7 +2,7 @@
 # compilacion (CFLAGS) y reglas de compilacion
 # para cada archivo objeto y el ejecutable final
 # (bank).
-CFLAGS=-g -std=c11 -Wall -D _BSD_SOURCE -pthread
+CFLAGS=-g -std=c11 -Wall -Werror -D _DEFAULT_SOURCE -pthread
 
 all: bank
 
