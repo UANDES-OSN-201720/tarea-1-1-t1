@@ -353,6 +353,7 @@ int main(int argc, char** argv) {
 						char * co;
 						char * sd;
 						char error[20]="";
+						char newtransac[30]="";
 
 						
 						//strcpy(copia,readbuffer);//lo hago aca para ver si funca
@@ -375,6 +376,14 @@ int main(int argc, char** argv) {
 							strcat(dep,co);
 							strcat(dep,",");
 							strcat(dep,monto);
+							
+							strcpy(newtransac,"DP,");
+							strcat(newtransac,so);
+							strcat(newtransac,",");
+							strcat(newtransac,co);
+							strcat(newtransac,",");
+							strcat(newtransac,cuenta);
+							addtransc(newtransac);
 							for(int i = 0; i<counter;i++){
 								if(strcmp(branches[i],so)==0){
 									write(inwPipes[forks][1], dep, strlen(dep)+1);
@@ -524,45 +533,51 @@ int main(int argc, char** argv) {
 		//comando para generar determinado dump.
 		else if (!strncmp("dump_accs", commandBuf, strlen("dump_accs"))) {
 			char *id;
-			if (strlen(commandBuf)<12){
+			if (strlen(commandBuf)<10){
 				printf("ERROR Se debe ingresar un id de sucursal\n");
 				continue;
 			}
 			id=strtok(commandBuf, " ");
 			id=strtok(NULL," ");
-			for (int j = 0; j<forks;j++){
-				if(strcmp(branches[j],id)==0){
-					write(outwPipes[j][1], commandBuf, (strlen(commandBuf)+1));
+			if(id!=NULL){
+				for (int j = 0; j<forks;j++){
+					if(strcmp(branches[j],id)==0){
+						write(outwPipes[j][1], commandBuf, (strlen(commandBuf)+1));
+					}
 				}
 			}
 			continue;
 
 		}else if (!strncmp("dump", commandBuf, strlen("dump"))) {
 			char *id;
-			if (strlen(commandBuf)<7){
+			if (strlen(commandBuf)<5){
 				printf("ERROR Se debe ingresar un id de sucursal\n");
 				continue;
 			}
 			id=strtok(commandBuf, " ");
 			id=strtok(NULL," ");
-			for (int j = 0; j<forks;j++){
-				if(strcmp(branches[j],id)==0){
-					write(outwPipes[j][1], commandBuf, (strlen(commandBuf)+1));
+			if(id!=NULL){
+				for (int j = 0; j<forks;j++){
+					if(strcmp(branches[j],id)==0){
+						write(outwPipes[j][1], commandBuf, (strlen(commandBuf)+1));
+					}
 				}
 			}
 			continue;
 
 		}else if (!strncmp("dump_errs", commandBuf, strlen("dump_errs"))) {
 			char *id;
-			if (strlen(commandBuf)<11){
+			if (strlen(commandBuf)<10){
 				printf("ERROR Se debe ingresar un id de sucursal\n");
 				continue;
 			}
 			id=strtok(commandBuf, " ");
 			id=strtok(NULL," ");
-			for (int j = 0; j<forks;j++){
-				if(strcmp(branches[j],id)==0){
-					write(outwPipes[j][1], commandBuf, (strlen(commandBuf)+1));
+			if(id!=NULL){
+				for (int j = 0; j<forks;j++){
+					if(strcmp(branches[j],id)==0){
+						write(outwPipes[j][1], commandBuf, (strlen(commandBuf)+1));
+					}
 				}
 			}
 			continue;
