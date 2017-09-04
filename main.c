@@ -23,17 +23,17 @@ int bankId;
 int outwPipes[50][2];//salida de banco principal.
 int inwPipes[50][2];//entrada al banco principal.
 
-char branches[50][4];//Sucursales.
+char branches[50][5];//Sucursales.
 char branchesac[50][7];//cantidad de cuentas en cada sucursal.
-char transc[20000][15];//transacciones generadas en cada sucursal.
+char transc[20000][40];//transacciones generadas en cada sucursal.
 char transcfail[20000][70];
 int tr = 0;
 int trfail = 0; //cantidad de errores hasta el momento.
 int forks = 0; //contador de fork actual.
 int counter = 0; //contador general de sucursales andando.
 int terminated = 0; //Indicador para terminar thread.
-char readbuffer[80]; // buffer para lectura desde pipe de salida.
-char readbuffer2[80]; // buffer para lectura desde pipe de entrada.
+char readbuffer[100]; // buffer para lectura desde pipe de salida.
+char readbuffer2[100]; // buffer para lectura desde pipe de entrada.
 int *cash;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -49,6 +49,18 @@ void subcash(int cual, int cuanto){
 	cash[cual]-=cuanto;
 	pthread_mutex_unlock(&mutex);
 }
+void adderror(char *final){
+	pthread_mutex_lock(&mutex);
+	strcpy(transcfail[trfail],final);
+	trfail+=1;
+	pthread_mutex_unlock(&mutex);
+}
+void addtransc(char *new){
+	pthread_mutex_lock(&mutex);
+	strcpy(transc[tr],new);
+	tr+=1;
+	pthread_mutex_unlock(&mutex);
+}
 
 //Thread de banco principal.
 void *parent(void *arg){
@@ -58,14 +70,14 @@ void *parent(void *arg){
 				//Lector de transacciones.
 				int five = 0;
 				int bytes = read(inwPipes[j][0], readbuffer2, sizeof(readbuffer2));
-				printf("sucursal %s dice: '%s' \n",branches[j], readbuffer2);
+				//printf("sucursal %s dice: '%s' \n",branches[j], readbuffer2);
 				for(int i = 0; i < strlen(readbuffer2); i++){
 					if(readbuffer2[i]==','){
 						five+=1;
 					}
 				}
 				if(five==5){
-					char  copiaoriginal[40];
+					char  copiaoriginal[50];
 					strcpy(copiaoriginal,readbuffer2);
 					char* tipo;
 					char* sucursalorigen;
@@ -80,28 +92,32 @@ void *parent(void *arg){
 					sucursaldestino=strtok(NULL, ",");
 					cuentadestino=strtok(NULL,",");
 					monto = strtok(NULL,",");
+
 					//redireccion de operaciones.
-					for (int j = 0; j<forks;j++){
-						if(strcmp(branches[j],sucursaldestino)==0){
+					for (int k = 0; k<forks;k++){
+						if(strcmp(branches[k],sucursaldestino)==0 && atoi(branchesac[k])>= atoi(cuentadestino)){
 							existe=1;
 							if (strcmp(tipo,"DP")==0){
-								char asd[4];
+								char asd[35];
 								sprintf(asd,"%s,%s,%s","DP",cuentadestino,monto);
-								write(outwPipes[j][1], asd, (strlen(asd)+1));
+								//printf("asd: %s sucursal %s \n",asd,branches[k]);
+								write(outwPipes[k][1], asd, (strlen(asd)+1));
 							
-							}else{
-								char  cp[34];
+							}
+							else{
+								char  cp[40];
 								strcpy(cp,readbuffer2);
-								write(outwPipes[j][1],cp,(strlen(cp)+1));
+								//printf("cp: %s sucursal %s \n",cp,branches[k]);
+								write(outwPipes[k][1],cp,(strlen(cp)+1));
 							}
 						
 						}
 					}
-					//error cuando cerró la sucursal a la que se envio algun mensaje.
+					//error de cuenta o sucursal cerrada.
 					if(existe==0){
-						char  co[34];
+						char  co[40];
 						strcpy(co,readbuffer2);
-						char mens [39]="FAIL,";
+						char mens [40]="FAIL,";
 						strcat(mens,co);
 						write(outwPipes[j][1], mens, (strlen(mens)+1));
 
@@ -125,28 +141,24 @@ void *child(void *arg){
 	
 	while(terminated == 0){
 		//Generacion de transacciones.
-		char msg[40] = "";
-		char guardartransc[34]="";
+		char msg[50]="";
+		char guardartransc[30]="";
 		t=100000;
 		t+=rand()%400000;
 		usleep(t);
 		int tipo = rand()%2;
 		if (tipo==1){
-			strcat(msg,"DP");
-			strcat(msg,",");
-			strcat(guardartransc,"DP");
-			strcat(guardartransc,",");
+			strcpy(msg,"DP,");
+			strcpy(guardartransc,"DP,");
 		}else{
-			strcat(msg,"RT");
-			strcat(msg,",");
-			strcat(guardartransc,"RT");
-			strcat(guardartransc,",");
+			strcpy(msg,"RT,");
+			strcpy(guardartransc,"RT,");
 		}
 		strcat(msg,branches[forks]);
 		strcat(msg,",");
 		strcat(guardartransc,branches[forks]);
 		strcat(guardartransc,",");
-		char sourcec[6];
+		char sourcec[7];
 		int sourcei = rand()%atoi(branchesac[forks]);
 		sprintf(sourcec,"%d",sourcei);
 		strcat(msg,sourcec);
@@ -157,18 +169,19 @@ void *child(void *arg){
 		while(atoi(branches[destiny])<0){
 			destiny = rand()%counter;
 		}
-		char branch[3]="";
+		char branch[4]="";
 		strcat(branch,branches[destiny]);
 		strcat(msg,branch);
 		strcat(msg,",");
-		char account[6];
-		int ac = rand()%atoi(branchesac[destiny]);
+		char account[10]="";
+		int ac = rand()%10000;
+		
 		sprintf(account,"%d",ac);
 		strcat(msg,account);
 		strcat(msg,",");
 		strcat(guardartransc,account);
 		
-		char out[9];
+		char out[10];
 		int money = rand()%500000000;
 		sprintf(out,"%d",money);
 		strcat(msg,out);
@@ -178,31 +191,29 @@ void *child(void *arg){
 				subcash(sourcei,money);
 				write(inwPipes[forks][1], msg, strlen(msg)+1);
 			}else{ 	//error
-				char failfinal [70]="";
+				char failfinal [80]="";
 				strcat(failfinal,"1,");
 				strcat(failfinal,sourcec);
 				strcat(failfinal,",");
-				char montoactual [9];
+				char montoactual [10];
 				sprintf(montoactual,"%d",cash[sourcei]);
-				char montoretiro[9];
+				char montoretiro[10];
 				sprintf(montoretiro,"%d",money);
 				strcat(failfinal,montoactual);
 				strcat(failfinal,",");
 				strcat(failfinal,montoretiro);
 				
-				strcpy(transcfail[trfail],failfinal);
-				trfail+=1;
+				adderror(failfinal);
 			
 			}
 
-		}else{
-			//se asume que que resulta la transaccion hasta que se reciba notificacion de lo contrario.
-			addcash(sourcei,money);
+		}
+		//Si es retiro.
+		else{
 			write(inwPipes[forks][1], msg, strlen(msg)+1);
 			
 		}
-		strcpy(transc[tr],guardartransc);
-		tr+=1;
+		addtransc(guardartransc);
 		usleep(t);
 	}
 	usleep(1500000);
@@ -263,7 +274,7 @@ int main(int argc, char** argv) {
 			char n[7] = "1000";
 
 			numerocuentas=strtok(NULL," ");
-			if (numerocuentas && atoi(numerocuentas)>0 && atoi(numerocuentas)<100000){	
+			if (numerocuentas && atoi(numerocuentas)>0 && atoi(numerocuentas)<=10000){	
 				strcpy(n,numerocuentas);
 			}
 			pid_t sucid = fork();	
@@ -316,77 +327,70 @@ int main(int argc, char** argv) {
 					// https://goo.gl/Yxyuxb
 					char *aux;
 					char *nada;
+					char name[20]="";
 					//manejo de depositos hacia esta sucursal.
 					if (!strncmp("DP", readbuffer, strlen("DP"))){
 						
 						//depositar
-						//printf("%s \n",readbuffer);
 						char * cuenta;
 						char * monto;
 						
 						nada=strtok(readbuffer, ",");
 						cuenta=strtok(NULL, ",");
-						monto =strtok(NULL,",");
+						monto=strtok(NULL,",");
 						addcash(atoi(cuenta),atoi(monto));
-						//printf("saldofinal %d\n",cash[atoi(cuenta)]);
 
 						
 					}
 					//manejo de retiros en esta sucursal.
 					else if (!strncmp("RT", readbuffer, strlen("RT"))){
-						char copia[34];
-
+						//char copia[34];
+						char dep[34];
 						char * cuenta;
 						char * monto;
 						char montop[7]="";
 						char * so;
+						char * co;
+						char * sd;
 						char error[20]="";
 
-						strcpy(error,"1,");
-						strcpy(copia,readbuffer);//lo hago aca para ver si funca
+						
+						//strcpy(copia,readbuffer);//lo hago aca para ver si funca
 						nada=strtok(readbuffer, ",");//tipo
 						so=strtok(NULL,",");//so
-						nada=strtok(NULL,",");//co
-						nada=strtok(NULL,",");//sd
+						co=strtok(NULL,",");//co
+						sd=strtok(NULL,",");//sd
 						cuenta=strtok(NULL,",");//cd
-						strcat(error,cuenta);
-						strcat(error,",");
 						sprintf(montop,"%d",cash[atoi(cuenta)]);
-						strcat(error,montop);
-						strcat(error,",");
 						monto =strtok(NULL,",");//monto
-						strcat(error,monto);
-
 						if (cash[atoi(cuenta)]>=atoi(monto)){
 							subcash(atoi(cuenta),atoi(monto));
+							strcpy(dep,"DP,");
+							strcat(dep,sd);
+							strcat(dep,",");
+							strcat(dep,cuenta);
+							strcat(dep,",");
+							strcat(dep,so);
+							strcat(dep,",");
+							strcat(dep,co);
+							strcat(dep,",");
+							strcat(dep,monto);
+							for(int i = 0; i<counter;i++){
+								if(strcmp(branches[i],so)==0){
+									write(inwPipes[forks][1], dep, strlen(dep)+1);
+								}
+							}
 						}
 						//error en el caso de no tener el dinero para el retiro pedido.
 						else{
-							copia[0]='E';
-							copia[1]='1';
-							for(int i = 0; i<counter;i++){
-								if(strcmp(branches[i],so)==0){
-									write(outwPipes[i][1], copia, strlen(copia)+1);
-								}
-							}
-							strcpy(transcfail[trfail],error);
-							trfail+=1;
+							strcpy(error,"1,");
+							strcat(error,cuenta);
+							strcat(error,",");
+							strcat(error,montop);
+							strcat(error,",");
+							strcat(error,monto);
+							adderror(error);
 						}
-						
-					}
-					//receptor de error por falta de fondos.
-					else if (!strncmp("E1", readbuffer, strlen("E1"))){
-						char * cuenta;
-						char * monto;
-
-						nada=strtok(readbuffer, ",");//tipo
-						nada=strtok(NULL,",");//so
-						cuenta=strtok(NULL,",");//co
-						nada=strtok(NULL,",");//sd
-						nada=strtok(NULL,",");//cd
-						monto =strtok(NULL,",");//monto
-						//se resta lo antes asumido que resultaba.
-						subcash(atoi(cuenta),atoi(monto));
 						
 					}
 					//manejo de error en momento de que maten una sucursal a la que se le estaba enviando una transaccion.
@@ -397,20 +401,17 @@ int main(int argc, char** argv) {
 						nada=strtok(readbuffer, ",");//nada
 						tipo=strtok(NULL,",");
 						nada=strtok(NULL,",");//so
-						cuenta=strtok(NULL,",");//co
+						nada=strtok(NULL,",");//co
 						nada=strtok(NULL,",");//sd
-						nada=strtok(NULL,",");//cd
+						cuenta=strtok(NULL,",");//cd
 						monto =strtok(NULL,",");//monto
 						if (strncmp("DP", tipo,2)==0){
 							addcash(atoi(cuenta),atoi(monto));// le devuelvo la plata
-						}else{
-							subcash(atoi(cuenta),atoi(monto));// le resto lo que habia sumado
 						}
-						char fail[5];
-						strcpy(fail,"1,");
+						char fail[6];
+						strcpy(fail,"2,");
 						strcat(fail,cuenta);
-						strcpy(transcfail[trfail],fail);
-						trfail+=1;
+						adderror(fail);
 		
 					}
 					//aviso de nueva sucursal abierta.
@@ -446,7 +447,8 @@ int main(int argc, char** argv) {
 					}
 					//dump de cuentas.
 					else if (!strncmp("dump_accs", readbuffer, strlen("dump_accs"))){
-						ipg=fopen("dump_accs_PID.csv", "w");
+						sprintf(name,"dump_accs_%s.csv",branches[forks]);
+						ipg=fopen(name, "w");
 					        if (ipg == NULL) {
 						    fprintf(stderr, "No se puede abrir archivo de entrada\n");
 						    exit(1);
@@ -460,7 +462,8 @@ int main(int argc, char** argv) {
 					
 					}//dump de transacciones con error.
 					else if (!strncmp("dump_errs", readbuffer, strlen("dump_errs"))){
-						ipg=fopen("dump_errs_PID.csv", "w");
+						sprintf(name,"dump_errs_%s.csv",branches[forks]);
+						ipg=fopen(name, "w");
 					        if (ipg == NULL) {
 						    fprintf(stderr, "No se puede abrir archivo de entrada\n");
 						    exit(1);
@@ -475,15 +478,14 @@ int main(int argc, char** argv) {
 					}
 					//dump de transacciones generadas.
 					else if (!strncmp("dump", readbuffer, strlen("dump"))){
-					
-						ipg=fopen("dump_PID.csv", "w");
+						sprintf(name,"dump_%s.csv",branches[forks]);
+						ipg=fopen(name, "w");
 					        if (ipg == NULL) {
 						    fprintf(stderr, "No se puede abrir archivo de entrada\n");
 						    exit(1);
 					        }
 						fprintf(ipg,"tipo de transacción, medio de origen, cuenta de origen, cuenta de destino\n");
 						for (int i=0; i<tr; i++){
-							
 							fprintf(ipg,"%s \n", transc[i]);
 						}
 						if(ipg!=NULL) fclose(ipg);
