@@ -92,10 +92,9 @@ void *parent(void *arg){
 					sucursaldestino=strtok(NULL, ",");
 					cuentadestino=strtok(NULL,",");
 					monto = strtok(NULL,",");
-
 					//redireccion de operaciones.
 					for (int k = 0; k<forks;k++){
-						if(strcmp(branches[k],sucursaldestino)==0 && atoi(branchesac[k])>= atoi(cuentadestino)){
+						if((strcmp(branches[k],sucursaldestino)==0) && (atoi(branchesac[k])>= atoi(cuentadestino))){
 							existe=1;
 							if (strcmp(tipo,"DP")==0){
 								char asd[35];
@@ -328,8 +327,30 @@ int main(int argc, char** argv) {
 					char *aux;
 					char *nada;
 					char name[20]="";
+					//manejo de error en momento de que maten una sucursal a la que se le estaba enviando una transaccion.
+					if (!strncmp("FAIL", readbuffer, strlen("FAIL"))){
+						char * tipo;
+						char * cuentao;
+						char * cuentad;
+						char * monto;
+						nada=strtok(readbuffer, ",");//nada
+						tipo=strtok(NULL,",");
+						nada=strtok(NULL,",");//so
+						cuentao=strtok(NULL,",");//co
+						nada=strtok(NULL,",");//sd
+						cuentad=strtok(NULL,",");//cd
+						monto =strtok(NULL,",");//monto
+						if (strncmp("DP", tipo,2)==0){
+							addcash(atoi(cuentao),atoi(monto));// le devuelvo la plata
+						}
+						char fail[6];
+						strcpy(fail,"2,");
+						strcat(fail,cuentad);
+						adderror(fail);
+		
+					}
 					//manejo de depositos hacia esta sucursal.
-					if (!strncmp("DP", readbuffer, strlen("DP"))){
+					else if (!strncmp("DP", readbuffer, strlen("DP"))){
 						
 						//depositar
 						char * cuenta;
@@ -401,27 +422,6 @@ int main(int argc, char** argv) {
 							adderror(error);
 						}
 						
-					}
-					//manejo de error en momento de que maten una sucursal a la que se le estaba enviando una transaccion.
-					else if (!strncmp("FAIL", readbuffer, strlen("FAIL"))){
-						char * tipo;
-						char * cuenta;
-						char * monto;
-						nada=strtok(readbuffer, ",");//nada
-						tipo=strtok(NULL,",");
-						nada=strtok(NULL,",");//so
-						nada=strtok(NULL,",");//co
-						nada=strtok(NULL,",");//sd
-						cuenta=strtok(NULL,",");//cd
-						monto =strtok(NULL,",");//monto
-						if (strncmp("DP", tipo,2)==0){
-							addcash(atoi(cuenta),atoi(monto));// le devuelvo la plata
-						}
-						char fail[6];
-						strcpy(fail,"2,");
-						strcat(fail,cuenta);
-						adderror(fail);
-		
 					}
 					//aviso de nueva sucursal abierta.
 					else if (!strncmp("NS", readbuffer, strlen("NS"))){
