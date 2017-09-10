@@ -49,9 +49,9 @@ void subcash(int cual, int cuanto){
 	cash[cual]-=cuanto;
 	pthread_mutex_unlock(&mutex);
 }
-void adderror(char *final){
+void adderror(char *new){
 	pthread_mutex_lock(&mutex);
-	strcpy(transcfail[trfail],final);
+	strcpy(transcfail[trfail],new);
 	trfail+=1;
 	pthread_mutex_unlock(&mutex);
 }
@@ -267,14 +267,19 @@ int main(int argc, char** argv) {
 			// es potencialmente peligroso, dado que accidentalmente
 			// pueden iniciarse procesos sin control.
 			// Buscar en Google "fork bomb"
-			char  * numerocuentas;
+			char * numerocuentas;
+			char * numerothreads;
 			//int largo = strlen(commandBuf);
 			numerocuentas = strtok(commandBuf, " ");
 			char n[7] = "1000";
-
+			char thds[2] = "1";
 			numerocuentas=strtok(NULL," ");
 			if (numerocuentas && atoi(numerocuentas)>0 && atoi(numerocuentas)<=10000){	
 				strcpy(n,numerocuentas);
+			}
+			numerothreads=strtok(NULL," ");
+			if (numerothreads && atoi(numerothreads)>0 && atoi(numerothreads)<9){	
+				strcpy(thds,numerothreads);
 			}
 			pid_t sucid = fork();	
 			if (sucid > 0) {
@@ -307,8 +312,10 @@ int main(int argc, char** argv) {
 					cash[i]=1000;
 					cash[i]+=rand()%499999000;
 				}
-				pthread_t tc;
-				pthread_create(&tc, NULL,child,NULL);
+				pthread_t tc[atoi(thds)];
+				for (int i = 0; i < atoi(thds); i++){
+					pthread_create(&tc[i], NULL,child,NULL);
+				}
 				printf("Hola, soy la sucursal '%d' y tengo '%s' cuentas \n", sucId, n);
 				while (true) {
 					// 100 milisegundos...
@@ -443,7 +450,9 @@ int main(int argc, char** argv) {
 						aux=strtok(NULL," ");
 						if(strcmp(branches[forks],aux)==0){
 							terminated = 1;
-							pthread_join(tc,NULL);
+							for (int i = 0; i < atoi(thds); i++){
+								pthread_join(tc[i],NULL);
+							}
 							free(cash);		 	
 							_exit(EXIT_SUCCESS);
 						}
