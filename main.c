@@ -26,15 +26,15 @@ int inwPipes[50][2];//entrada al banco principal.
 char branches[50][5];//Sucursales.
 char branchesac[50][7];//cantidad de cuentas en cada sucursal.
 char brancheter[50][2];//cantidad de terminales en cada sucursal.
-char transc[20000][40];//transacciones generadas en cada sucursal.
-char transcfail[20000][70];
+char transc[50000][40];//transacciones generadas en cada sucursal.
+char transcfail[50000][70];
 int tr = 0;
 int trfail = 0; //cantidad de errores hasta el momento.
 int forks = 0; //contador de fork actual.
 int counter = 0; //contador general de sucursales andando.
 int terminated = 0; //Indicador para terminar thread.
-char readbuffer[120]; // buffer para lectura desde pipe de salida.
-char readbuffer2[50][120]; // buffer para lectura desde pipe de entrada.
+char readbuffer[40]; // buffer para lectura desde pipe de salida.
+char readbuffer2[40]; // buffer para lectura desde pipe de entrada.
 int *cash;
 pthread_mutex_t mutex[10000];
 pthread_mutex_t emutex = PTHREAD_MUTEX_INITIALIZER;
@@ -73,26 +73,31 @@ void *parent(void *arg){
 				//Lector de transacciones.
 				for(int l = 0; l < atoi(brancheter[j]) ; l++){
 					int five = 0;
-					int bytes = read(inwPipes[j][0], readbuffer2[j], sizeof(readbuffer2[j]));
-					//printf("sucursal %s, %d dice: '%s' \n",branches[j], l, readbuffer2[j]);
-					for(int i = 0; i < strlen(readbuffer2[j]); i++){
-						if(readbuffer2[j][i]==','){
+					char buff[2];
+					buff[1]='\0';
+					while(read(inwPipes[j][0], buff, 1)>0){
+						if(strcmp(buff,"\0")==0){
+							break;
+						}
+						strcat(readbuffer2,buff);
+					}
+					//printf("sucursal %s, %d dice: '%s' \n",branches[j], l, readbuffer2);
+					for(int i = 0; i < strlen(readbuffer2); i++){
+						if(readbuffer2[i]==','){
 							five+=1;
 						}
 					}
-					if(five==5 && ( (!strncmp("DP", readbuffer2[j], strlen("DP"))) || (!strncmp("RT", readbuffer2[j], strlen("RT")))) ){
-						char  copiaoriginal[50];
-						strcpy(copiaoriginal,readbuffer2[j]);
+					if(five==5 && ( (!strncmp("DP", readbuffer2, strlen("DP"))) || (!strncmp("RT", readbuffer2, strlen("RT")))) ){
+						char  copiaoriginal[40];
+						strcpy(copiaoriginal,readbuffer2);
 						char* tipo;
-						char* sucursalorigen;
-						char* cuentaorigen;
 						char* sucursaldestino;
 						char* cuentadestino;
 						char* monto;
 						int existe = 0;
 						tipo = strtok(copiaoriginal, ","); 
-						sucursalorigen = strtok(NULL, ",");
-						cuentaorigen = strtok(NULL, ",");
+						strtok(NULL, ",");
+						strtok(NULL, ",");
 						sucursaldestino=strtok(NULL, ",");
 						cuentadestino=strtok(NULL,",");
 						monto = strtok(NULL,",");
@@ -101,7 +106,7 @@ void *parent(void *arg){
 							if((strcmp(branches[k],sucursaldestino)==0) && (atoi(branchesac[k])>= atoi(cuentadestino))){
 								existe=1;
 								if (strcmp(tipo,"DP")==0){
-									char asd[35];
+									char asd[40];
 									sprintf(asd,"%s,%s,%s","DP",cuentadestino,monto);
 									//printf("asd: %s sucursal %s \n",asd,branches[k]);
 									write(outwPipes[k][1], asd, (strlen(asd)+1));
@@ -109,7 +114,7 @@ void *parent(void *arg){
 								}
 								else{
 									char  cp[40];
-									strcpy(cp,readbuffer2[j]);
+									strcpy(cp,readbuffer2);
 									//printf("cp: %s sucursal %s \n",cp,branches[k]);
 									write(outwPipes[k][1],cp,(strlen(cp)+1));
 								}
@@ -119,17 +124,17 @@ void *parent(void *arg){
 						//error de cuenta o sucursal cerrada.
 						if(existe==0){
 							char  co[40];
-							strcpy(co,readbuffer2[j]);
+							strcpy(co,readbuffer2);
 							char mens [40]="FAIL,";
 							strcat(mens,co);
+							//printf("mens: %s sucursal %s \n",mens,branches[j]);
 							write(outwPipes[j][1], mens, (strlen(mens)+1));
-
 						}
-						(void)cuentaorigen;
-						(void)sucursalorigen;
 					}
-					(void)bytes;
-					strcpy(readbuffer2[j],"");
+					else{
+						//printf("sucursal %s, %d dice: '%s' \n",branches[j], l, readbuffer2);
+					}
+					memset(&readbuffer2[0], 0, sizeof(readbuffer2));
 				}
 			}
 		}
@@ -187,6 +192,7 @@ void *child(void *arg){
 		int money = rand()%500000000;
 		sprintf(out,"%d",money);
 		strcat(msg,out);
+		msg[strlen(msg)]='\0';
 		if (tipo ==1){
 			//Si es un deposito, se asegura de tener los fondos, o anotar el error.
 			if (cash[sourcei]>money){
@@ -327,8 +333,15 @@ int main(int argc, char** argv) {
 				printf("Hola, soy la sucursal '%d' y tengo '%s' cuentas \n", sucId, n);
 				while (true) {
 					// 100 milisegundos...
-					int bytes = read(outwPipes[forks][0], readbuffer, sizeof(readbuffer));
-					//printf("Soy la sucursal '%d' y me llego mensaje '%s' de '%d' bytes.\n", sucId,readbuffer, bytes);
+					char buff[2];
+					buff[1]='\0';
+					while(read(outwPipes[forks][0], buff, 1)>0){
+						if(strcmp(buff,"\0")==0){
+							break;
+						}
+						strcat(readbuffer,buff);
+					}
+					//printf("buffer: %s \n",readbuffer);
 
 					// Usar usleep para dormir una cantidad de microsegundos
 					//usleep(1000000);
@@ -340,7 +353,6 @@ int main(int argc, char** argv) {
 					// debido a razones documentadas aqui:
 					// https://goo.gl/Yxyuxb
 					char *aux;
-					char *nada;
 					char name[20]="";
 					//manejo de error en momento de que maten una sucursal a la que se le estaba enviando una transaccion.
 					if (!strncmp("FAIL", readbuffer, strlen("FAIL"))){
@@ -348,11 +360,11 @@ int main(int argc, char** argv) {
 						char * cuentao;
 						char * cuentad;
 						char * monto;
-						nada=strtok(readbuffer, ",");//nada
+						strtok(readbuffer, ",");//nada
 						tipo=strtok(NULL,",");
-						nada=strtok(NULL,",");//so
+						strtok(NULL,",");//so
 						cuentao=strtok(NULL,",");//co
-						nada=strtok(NULL,",");//sd
+						strtok(NULL,",");//sd
 						cuentad=strtok(NULL,",");//cd
 						monto =strtok(NULL,",");//monto
 						if (strncmp("DP", tipo,2)==0){
@@ -371,7 +383,7 @@ int main(int argc, char** argv) {
 						char * cuenta;
 						char * monto;
 						
-						nada=strtok(readbuffer, ",");
+						strtok(readbuffer, ",");
 						cuenta=strtok(NULL, ",");
 						monto=strtok(NULL,",");
 						addcash(atoi(cuenta),atoi(monto));
@@ -393,7 +405,7 @@ int main(int argc, char** argv) {
 
 						
 						//strcpy(copia,readbuffer);//lo hago aca para ver si funca
-						nada=strtok(readbuffer, ",");//tipo
+						strtok(readbuffer, ",");//tipo
 						so=strtok(NULL,",");//so
 						co=strtok(NULL,",");//co
 						sd=strtok(NULL,",");//sd
@@ -455,8 +467,9 @@ int main(int argc, char** argv) {
 							terminated = 1;
 							for (int i = 0; i < atoi(thds); i++){
 								pthread_join(tc[i],NULL);
-							}
-							free(cash);		 	
+							}	
+							free(cash);	
+							free(commandBuf);
 							_exit(EXIT_SUCCESS);
 						}
 						for (int j = 0; j<counter;j++){
@@ -484,7 +497,6 @@ int main(int argc, char** argv) {
 					        
 					        if(ipg!=NULL) fclose(ipg);
 						for (int i=0; i< atoi(n); i++){
-					
 							pthread_mutex_unlock(&mutex[i]);
 						}	
 					
@@ -523,9 +535,10 @@ int main(int argc, char** argv) {
 						pthread_mutex_unlock(&tmutex);
 					
 					}
-					(void)nada;
-					(void)bytes;	
-					
+					else{
+						//printf("buffer_error: %s \n",readbuffer);
+					}
+					memset(&readbuffer[0], 0, sizeof(readbuffer));
 				}
 			}
 			// error
@@ -622,7 +635,7 @@ int main(int argc, char** argv) {
 	
 	//señal para terminar thread concurrente.
 	terminated = 1;
-	free(cash);
+	free(commandBuf);
   	printf("Terminando ejecucion limpiamente...\n");
 	wait(NULL);
 	pthread_join(th,NULL);
