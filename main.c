@@ -36,31 +36,33 @@ int terminated = 0; //Indicador para terminar thread.
 char readbuffer[120]; // buffer para lectura desde pipe de salida.
 char readbuffer2[50][120]; // buffer para lectura desde pipe de entrada.
 int *cash;
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex[10000];
+pthread_mutex_t emutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t tmutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t rmutex = PTHREAD_MUTEX_INITIALIZER;
 
 //metodos con lock para la plata de las cuentas.
 void addcash(int cual, int cuanto){
-	pthread_mutex_lock(&mutex);
+	pthread_mutex_lock(&mutex[cual]);
 	cash[cual]+=cuanto;
-	pthread_mutex_unlock(&mutex);
+	pthread_mutex_unlock(&mutex[cual]);
 }
 void subcash(int cual, int cuanto){
-	pthread_mutex_lock(&mutex);
+	pthread_mutex_lock(&mutex[cual]);
 	cash[cual]-=cuanto;
-	pthread_mutex_unlock(&mutex);
+	pthread_mutex_unlock(&mutex[cual]);
 }
 void adderror(char *new){
-	pthread_mutex_lock(&mutex);
+	pthread_mutex_lock(&emutex);
 	strcpy(transcfail[trfail],new);
 	trfail+=1;
-	pthread_mutex_unlock(&mutex);
+	pthread_mutex_unlock(&emutex);
 }
 void addtransc(char *new){
-	pthread_mutex_lock(&mutex);
+	pthread_mutex_lock(&tmutex);
 	strcpy(transc[tr],new);
 	tr+=1;
-	pthread_mutex_unlock(&mutex);
+	pthread_mutex_unlock(&tmutex);
 }
 
 //Thread de banco principal.
@@ -316,6 +318,7 @@ int main(int argc, char** argv) {
 				for (int i=0; i< atoi(n); i++){
 					cash[i]=1000;
 					cash[i]+=rand()%499999000;
+					pthread_mutex_init(&mutex[i],NULL);
 				}
 				pthread_t tc[8];
 				for (int i = 0; i < atoi(thds); i++){
@@ -465,6 +468,9 @@ int main(int argc, char** argv) {
 					}
 					//dump de cuentas.
 					else if (!strncmp("dump_accs", readbuffer, strlen("dump_accs"))){
+						for (int i=0; i< atoi(n); i++){
+							pthread_mutex_lock(&mutex[i]);
+						}
 						sprintf(name,"dump_accs_%s.csv",branches[forks]);
 						ipg=fopen(name, "w");
 					        if (ipg == NULL) {
@@ -476,10 +482,15 @@ int main(int argc, char** argv) {
 							fprintf(ipg,"%06d, %d \n", i, cash[i]);
 						}
 					        
-					        if(ipg!=NULL) fclose(ipg);	
+					        if(ipg!=NULL) fclose(ipg);
+						for (int i=0; i< atoi(n); i++){
+					
+							pthread_mutex_unlock(&mutex[i]);
+						}	
 					
 					}//dump de transacciones con error.
 					else if (!strncmp("dump_errs", readbuffer, strlen("dump_errs"))){
+						pthread_mutex_lock(&emutex);
 						sprintf(name,"dump_errs_%s.csv",branches[forks]);
 						ipg=fopen(name, "w");
 					        if (ipg == NULL) {
@@ -492,10 +503,12 @@ int main(int argc, char** argv) {
 							fprintf(ipg,"%s\n", transcfail[i]);
 						}
 						if(ipg!=NULL) fclose(ipg);
+						pthread_mutex_unlock(&emutex);
 					
 					}
 					//dump de transacciones generadas.
 					else if (!strncmp("dump", readbuffer, strlen("dump"))){
+						pthread_mutex_lock(&tmutex);
 						sprintf(name,"dump_%s.csv",branches[forks]);
 						ipg=fopen(name, "w");
 					        if (ipg == NULL) {
@@ -507,6 +520,7 @@ int main(int argc, char** argv) {
 							fprintf(ipg,"%s \n", transc[i]);
 						}
 						if(ipg!=NULL) fclose(ipg);
+						pthread_mutex_unlock(&tmutex);
 					
 					}
 					(void)nada;
@@ -611,5 +625,6 @@ int main(int argc, char** argv) {
 	free(cash);
   	printf("Terminando ejecucion limpiamente...\n");
 	wait(NULL);
+	pthread_join(th,NULL);
   	return(EXIT_SUCCESS);
 }
