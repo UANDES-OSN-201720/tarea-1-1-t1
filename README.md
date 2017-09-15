@@ -9,7 +9,7 @@ Grupo Aldunate-Hurtado
 Main thread: Maneja la interfaz de consola de texto para ingreso de comandos, su manejo, y creación de hijos(sucursales). Puede utilizar los siguientes comandos:
 
 -“list”: entrega una lista con todas las sucursales activas.
--“init”: crea nuevas sucursales. Se le puede entregar un número y así especificar la cantidad de cuentas para este. Si no se entrega un numero o si este excede 10000, por defecto será creada con 1000 cuentas.
+-“init”: crea nuevas sucursales. Se le puede entregar un número y así especificar la cantidad de cuentas para este. Si no se entrega un numero o si este excede 10000, por defecto será creada con 1000 cuentas. Adicionalmente se puede entregar un número extra para especificar cuantas terminales (threads) se quiere crear en la sucursal. el maximo de threads es 8. se tiene un default de 1 terminal.(formato: init N° cuentas N° threads)
 -“kill”: este comando se le entrega algún numero de una sucursal para poder terminar se procesó. Además, se eliminara de la lista del banco matriz y además de las otras sucursales.
 -“dump”: este comando se le entrega algún numero de una sucursal para poder generar un archivo en formato csv. Este contendrá todas las transacciones generadas el thread child de la sucursal especificada.
 -“dump_accs”: este comando se le entrega algún numero de una sucursal para poder generar un archivo en formato csv. Este contendrá todas las cuentas y saldos respectivos de estas de la sucursal especificada.
@@ -27,10 +27,11 @@ Main thread: Maneja las instrucciones entregadas por los pipes, ejecutando los c
 -FAIL: Maneja el error en el momento en que termine una sucursal a la que se le estaba enviando una transacción. Asi se devolverá un error al banco matriz para posteriormente re enviarse a la matriz emisora original.
 -NS: Avisa a todas las sucursales cuando se crea una nueva sucursal.
 
+Ahora se crean n thread child, dependiendo si es especificado en el init de la sucursal.
 Thread child : Genera las transacciones,  las guarda, y a la vez maneja los errores de montos. También es el encargado de restar el dinero de la cuenta que genera un depósito. 
 
 2. Problemas:
-Durante el desarrollo de la tarea, nos encontramos con diversos problemas, pero muchos de estos fueron rápidamente solucionados, ningún problema mayor. Hicimos nuestro programa lo más robusto posible, manejando la mayor cantidad de errores que se nos ocurrió que pudieran suceder. Hasta el momento no hemos encontrado algún problema específico que bote el programa.
+El problema mas grande que nos encontramos fue que al pasar una cierta cantidad de threads, derrepente el banco matriz no leia bien lo enviado por las sucursales. Esto lo arreglamos comenzando a leer lo que se escribia en los pipes caracter por caracter, en vez de linea por linea.
 
 3. Funciones sin implementar:
-Implementamos todas las funciones requeridas para la entrega 1 de la tarea.
+Implementamos todas las funciones requeridas para la entrega 1 parte 2 de la tarea.
